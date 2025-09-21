@@ -340,7 +340,11 @@ class YamiroUpscaler:
         if self.device.type == 'cuda':
             torch.cuda.empty_cache()
         elif self.device.type == 'mps':
-            torch.mps.empty_cache()
+            try:
+                torch.mps.empty_cache()
+            except AttributeError:
+                # Older PyTorch versions don't have MPS cache clearing
+                pass
     
     def get_stats(self) -> Dict[str, Any]:
         """Get processing statistics."""
