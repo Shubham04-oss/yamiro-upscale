@@ -1,0 +1,38 @@
+name: yamiro-upscale
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.11
+  - pip
+  - ffmpeg
+  - numpy
+  - pillow
+  - opencv
+  - matplotlib
+  - tqdm
+  - rich
+  - psutil
+  - pip:
+      - torch
+      - torchvision
+      - realesrgan
+      - basicsr
+      - facexlib
+      - gfpgan
+      - onnx
+      - coremltools
+      - gradio
+      - streamlit
+      - pytest
+      - pytest-cov
+      - black
+      - isort
+      - flake8
+      - pre-commit
+
+# NOTE: After creating the environment, install PyTorch with MPS support:
+# conda activate yamiro-upscale
+# pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu
+# Or check https://pytorch.org/get-started/locally/ for latest MPS-enabled wheels
