@@ -44,12 +44,11 @@ def get_upscaler(model_name: str = 'realesrgan_x4', device: str = 'auto') -> Yam
 
 
 def upscale_single_image(
-    image: Optional[Image.Image],
+    image: Image.Image,
     model_name: str,
     device: str,
     scale_factor: int,
-    tile_size: int,
-    progress: gr.Progress
+    tile_size: int
 ) -> Tuple[Optional[Image.Image], str, str]:
     """
     Upscale a single image with progress tracking.
@@ -61,24 +60,18 @@ def upscale_single_image(
         return None, "❌ Please upload an image first", "{}"
     
     try:
-        progress(0.1, desc="Loading model...")
-        
         # Get upscaler
         upscaler = get_upscaler(model_name, device)
         
-        # Update tile size if changed
-        if upscaler.upsampler.tile != tile_size:
-            upscaler.upsampler.tile = tile_size
-            logger.info(f"🔧 Updated tile size: {tile_size}")
-        
-        progress(0.3, desc="Starting upscaling...")
+        if hasattr(upscaler, 'upsampler') and upscaler.upsampler and hasattr(upscaler.upsampler, 'tile'):
+            if upscaler.upsampler.tile != tile_size:
+                upscaler.upsampler.tile = tile_size
+                logger.info(f"🔧 Updated tile size: {tile_size}")
         
         # Upscale image
         start_time = time.time()
         result_image = upscaler.upscale_single(image)
         processing_time = time.time() - start_time
-        
-        progress(1.0, desc="Complete!")
         
         # Generate info
         original_size = image.size
@@ -121,8 +114,7 @@ def upscale_batch_images(
     model_name: str,
     device: str,
     scale_factor: int,
-    tile_size: int,
-    progress: gr.Progress
+    tile_size: int
 ) -> Tuple[List[Image.Image], str, str]:
     """
     Upscale multiple images in batch.
@@ -134,7 +126,6 @@ def upscale_batch_images(
         return [], "❌ Please upload some images first", "{}"
     
     try:
-        progress(0.1, desc="Loading model...")
         upscaler = get_upscaler(model_name, device)
         
         if upscaler.upsampler.tile != tile_size:
@@ -147,8 +138,6 @@ def upscale_batch_images(
         start_time = time.time()
         
         for i, file in enumerate(files):
-            progress((i + 1) / total_files, desc=f"Processing {i + 1}/{total_files}...")
-            
             try:
                 # Load image
                 image = Image.open(file.name)
@@ -237,8 +226,7 @@ def get_system_info() -> str:
 def benchmark_model(
     model_name: str,
     device: str,
-    duration: int,
-    progress: gr.Progress
+    duration: int
 ) -> Tuple[str, str]:
     """
     Run a quick benchmark of the selected model.
@@ -247,15 +235,12 @@ def benchmark_model(
         Tuple of (results_text, stats_json)
     """
     try:
-        progress(0.1, desc="Loading model...")
         upscaler = get_upscaler(model_name, device)
         
         # Create test image
         test_image = Image.fromarray(
             np.random.randint(0, 256, (512, 512, 3), dtype=np.uint8)
         )
-        
-        progress(0.3, desc="Running benchmark...")
         
         # Warm up
         upscaler.upscale_single(test_image)
@@ -265,14 +250,10 @@ def benchmark_model(
         iterations = max(3, duration // 5)  # At least 3 iterations
         
         for i in range(iterations):
-            progress(0.3 + 0.6 * (i / iterations), desc=f"Iteration {i+1}/{iterations}...")
-            
             start_time = time.time()
             result = upscaler.upscale_single(test_image)
             processing_time = time.time() - start_time
             times.append(processing_time)
-        
-        progress(1.0, desc="Complete!")
         
         # Calculate stats
         avg_time = sum(times) / len(times)

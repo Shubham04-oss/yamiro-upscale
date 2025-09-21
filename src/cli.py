@@ -108,7 +108,6 @@ def cmd_upscale(args):
         return 1
     
     output_path = Path(args.output)
-    output_path.mkdir(parents=True, exist_ok=True)
     
     # Create upscaler config
     config = UpscalerConfig(
@@ -130,8 +129,8 @@ def cmd_upscale(args):
         
         # Process based on input type
         if input_path.is_file():
-            # Single image
-            output_file = output_path / f"upscaled_{input_path.name}"
+            # Single image - use output path as the actual file path
+            output_file = output_path
             
             with Progress(
                 SpinnerColumn(),
@@ -234,6 +233,44 @@ def cmd_benchmark(args):
         return 1
 
 
+def cmd_webui(args):
+    """Launch the web interface."""
+    console.print("🌐 Starting Yamiro Upscaler Web Interface...", style="blue")
+    
+    try:
+        # Import webui module
+        from webui.app import create_yamiro_interface
+        
+        console.print(f"🚀 Launching on http://{args.host}:{args.port}", style="green")
+        console.print("⚡ Features: Single/Batch upscaling, Benchmarking, System info", style="cyan")
+        
+        if not args.debug:
+            console.print("🎯 Demo mode: Using bicubic interpolation (install Real-ESRGAN for AI upscaling)", style="yellow")
+        
+        console.print("\n🔗 Access the interface in your browser!", style="bold green")
+        
+        # Create and launch the interface
+        app = create_yamiro_interface()
+        app.launch(
+            server_name=args.host,
+            server_port=args.port,
+            share=args.share,
+            debug=args.debug,
+            quiet=not args.debug
+        )
+        
+        return 0
+        
+    except ImportError as e:
+        console.print(f"❌ Web UI dependencies missing: {e}", style="red")
+        console.print("💡 Install with: pip install gradio", style="yellow")
+        return 1
+    except Exception as e:
+        console.print(f"❌ Failed to start web interface: {e}", style="red")
+        logger.exception("Web UI failed")
+        return 1
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -310,6 +347,13 @@ Examples:
                                  help='Batch sizes to test')
     benchmark_parser.add_argument('--output', '-o', help='Save benchmark results to file')
     
+    # Web UI command
+    webui_parser = subparsers.add_parser('webui', help='Launch web interface')
+    webui_parser.add_argument('--host', default='127.0.0.1', help='Host to bind to')
+    webui_parser.add_argument('--port', type=int, default=7860, help='Port to bind to')
+    webui_parser.add_argument('--share', action='store_true', help='Create shareable link')
+    webui_parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    
     # Parse arguments
     args = parser.parse_args()
     
@@ -327,9 +371,92 @@ Examples:
         return cmd_upscale(args)
     elif args.command == 'benchmark':
         return cmd_benchmark(args)
+    elif args.command == 'webui':
+        return cmd_webui(args)
     else:
         parser.print_help()
         return 1
+    """Main CLI entry point."""
+    parser = argparse.ArgumentParser(
+        description="🎌 Yamiro Upscaler - AI-powered anime image upscaling",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Upscale a single image
+  yamiro-upscale upscale -i image.jpg -o results/
+  
+  # Upscale all images in a directory
+  yamiro-upscale upscale -i photos/ -o upscaled/ --recursive
+  
+  # Use different model and device
+  yamiro-upscale upscale -i image.jpg -o results/ --model realesrgan_anime --device mps
+  
+  # Run benchmarks
+  yamiro-upscale benchmark --duration 60 --output bench_results.json
+  
+  # Show system info
+  yamiro-upscale info
+        """
+    )
+    
+    # Global options
+    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--no-banner', action='store_true', help='Skip the banner')
+    
+    # Subcommands
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    
+    # Info command
+    info_parser = subparsers.add_parser('info', help='Show system information')
+    
+    # Upscale command
+    upscale_parser = subparsers.add_parser('upscale', help='Upscale images')
+    upscale_parser.add_argument('--input', '-i', required=True, help='Input image or directory')
+    upscale_parser.add_argument('--output', '-o', required=True, help='Output path')
+    upscale_parser.add_argument('--model', '-m', default='realesrgan_x4',
+                               choices=['realesrgan_x4', 'realesrgan_x2', 'realesrgan_anime'],
+                               help='AI model to use')
+    upscale_parser.add_argument('--device', default='auto',
+                               choices=['auto', 'mps', 'cuda', 'cpu'],
+                               help='Processing device')
+    upscale_parser.add_argument('--tile-size', type=int, default=512,
+                               help='Tile size for memory efficiency')
+    upscale_parser.add_argument('--batch-size', type=int, default=1,
+                               help='Batch size for processing')
+    upscale_parser.add_argument('--half-precision', action='store_true',
+                               help='Use half precision for memory efficiency')
+    upscale_parser.add_argument('--format', default='PNG',
+                               choices=['PNG', 'JPEG', 'WEBP'],
+                               help='Output format')
+    upscale_parser.add_argument('--quality', type=int, default=95,
+                               help='Output quality for JPEG/WEBP (1-100)')
+    upscale_parser.add_argument('--recursive', '-r', action='store_true',
+                               help='Process subdirectories recursively')
+    upscale_parser.add_argument('--stats', action='store_true',
+                               help='Show processing statistics')
+    
+    # Benchmark command
+    benchmark_parser = subparsers.add_parser('benchmark', help='Run performance benchmarks')
+    benchmark_parser.add_argument('--model', default='realesrgan_x4',
+                                 choices=['realesrgan_x4', 'realesrgan_x2', 'realesrgan_anime'],
+                                 help='Model to benchmark')
+    benchmark_parser.add_argument('--device', default='auto',
+                                 choices=['auto', 'mps', 'cuda', 'cpu'],
+                                 help='Device to benchmark')
+    benchmark_parser.add_argument('--duration', type=int, default=30,
+                                 help='Benchmark duration in seconds')
+    benchmark_parser.add_argument('--resolutions', nargs='+', type=int, default=[512, 1024],
+                                 help='Image resolutions to test')
+    benchmark_parser.add_argument('--batch-sizes', nargs='+', type=int, default=[1, 2, 4],
+                                 help='Batch sizes to test')
+    benchmark_parser.add_argument('--output', '-o', help='Save benchmark results to file')
+    
+    # Web UI command
+    webui_parser = subparsers.add_parser('webui', help='Launch web interface')
+    webui_parser.add_argument('--host', default='127.0.0.1', help='Host to bind to')
+    webui_parser.add_argument('--port', type=int, default=7860, help='Port to bind to')
+    webui_parser.add_argument('--share', action='store_true', help='Create shareable link')
+    webui_parser.add_argument('--debug', action='store_true', help='Enable debug mode')
 
 
 if __name__ == '__main__':
